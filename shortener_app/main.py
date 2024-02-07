@@ -8,8 +8,10 @@ from fastapi import (
 )
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+from starlette.datastructures import URL as DS_URL
 from . import schemas, models, crud
 from .database import SessionLocal, engine
+from .config import get_settings
 
 
 app = FastAPI()
@@ -38,6 +40,17 @@ def read_root():
     return 'Welcome to the URL shortener API'
 
 
+def get_admin_info(db_url: models.URL) -> schemas.URLInfo:
+    base_url = DS_URL(get_settings().base_url)
+    admin_endpoint = app.url_path_for(
+        'administration info',
+        secret_key=db_url.secret_key,   
+    )
+    db_url.url = str(base_url.replace(path=db_url.key))
+    db_url.admin_url = str(base_url.replace(path=admin_endpoint))
+    return db_url
+
+
 @app.get('/{url_key}')
 def forward_to_target_url(
         url_key: str,
@@ -58,10 +71,7 @@ def create_url(
         raise_bad_request(message="Your provided URL is not valid")
 
     db_url: models.URL = crud.create_db_url(db=db, url=url)
-    db_url.url = db_url.key
-    db_url.admin_url = db_url.secret_key
-    
-    return db_url
+    return get_admin_info(db_url)
 
 
 @app.get(
@@ -75,7 +85,5 @@ def get_url_info(
         db: Session = Depends(get_db),
     ):
     if db_url := crud.get_db_url_by_secret_key(db=db, secret_key=secret_key):
-        db_url.url = db_url.key
-        db_url.admin_url = db_url.secret_key
-        return db_url
+        return get_admin_info(db_url)
     raise_not_found(request)
