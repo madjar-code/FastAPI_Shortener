@@ -50,3 +50,12 @@ def get_db_url_by_secret_key(
         )
         .first()
     )
+
+
+def update_db_clicks(
+        db: Session,
+        db_url: schemas.URL
+    ) -> models.URL:
+    db_url.clicks += 1
+    db.commit()
+    db.refresh(db_url)
