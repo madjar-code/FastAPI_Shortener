@@ -1,5 +1,7 @@
+import requests
 import validators
 from typing import NoReturn
+from pydantic import HttpUrl
 from fastapi import (
     FastAPI,
     Depends,
@@ -51,6 +53,15 @@ def get_admin_info(db_url: models.URL) -> schemas.URLInfo:
     return db_url
 
 
+def is_valid_website(url: HttpUrl) -> bool:
+    try:
+        response = requests.get(url)
+        return response.status_code == 200
+    except Exception as e:
+        print(f'Error checking URL: {e}')
+        return False
+
+
 @app.get('/{url_key}')
 def forward_to_target_url(
         url_key: str,
@@ -58,6 +69,8 @@ def forward_to_target_url(
         db: Session = Depends(get_db),
     ):
     if db_url := crud.get_db_url_by_key(db=db, url_key=url_key):
+        if not is_valid_website(db_url.target_url):
+            return raise_bad_request(message="Website doesn't exist")
         crud.update_db_clicks(db=db, db_url=db_url)
         return RedirectResponse(db_url.target_url)
     return raise_not_found(request)
